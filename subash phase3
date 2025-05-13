@@ -1,0 +1,102 @@
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, mean_squared_error
+
+# Convert one-hot to labels
+y_true = np.argmax(y_test_cat, axis=1)
+y_pred = np.argmax(model.predict(X_test), axis=1)
+
+# Classification report
+print(classification_report(y_true, y_pred))
+
+# RMSE
+rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+print(f"RMSE: {rmse:.4f}")
+
+from sklearn.preprocessing import label_binarize
+from sklearn.metrics import roc_curve, auc
+
+y_test_bin = label_binarize(y_true, classes=np.arange(10))
+y_pred_prob = model.predict(X_test)
+
+fpr = {}
+tpr = {}
+roc_auc = {}
+for i in range(10):
+    fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], y_pred_prob[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+
+# Plot example for one class
+plt.figure()
+plt.plot(fpr[0], tpr[0], label=f'ROC curve (area = {roc_auc[0]:.2f})')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve for Digit 0')
+plt.legend()
+plt.show()
+
+import numpy as np
+from tensorflow.keras.models import load_model
+from tkinter import *
+from PIL import Image, ImageDraw, ImageOps
+
+# Load trained model (ensure 'mnist_model.h5' exists)
+model = load_model('mnist_model.h5')  # Trained CNN model
+
+class App:
+    def _init_(self, master):
+        self.master = master
+        self.master.title("Draw a digit (0-9)")
+        
+        # Canvas for drawing (200x200 white background)
+        self.canvas = Canvas(self.master, width=200, height=200, bg='white')
+        self.canvas.pack()
+        
+        # PIL image to store drawings (grayscale)
+        self.image = Image.new("L", (200, 200), 'white')
+        self.draw = ImageDraw.Draw(self.image)
+        
+        # Bind mouse drag event to paint function
+        self.canvas.bind("<B1-Motion>", self.paint)
+        
+        # Prediction and clear buttons
+        self.predict_button = Button(self.master, text="Predict", command=self.predict_digit)
+        self.predict_button.pack()
+        
+        self.clear_button = Button(self.master, text="Clear", command=self.clear_canvas)
+        self.clear_button.pack()
+        
+        # Label to display prediction result
+        self.label = Label(self.master, text="", font=("Helvetica", 24))
+        self.label.pack()
+
+    def paint(self, event):
+        """Draw black circles on canvas/Image when mouse is dragged"""
+        x1, y1 = (event.x - 8), (event.y - 8)  # Circle coordinates
+        x2, y2 = (event.x + 8), (event.y + 8)
+        self.canvas.create_oval(x1, y1, x2, y2, fill='black')  # Tkinter canvas
+        self.draw.ellipse([x1, y1, x2, y2], fill='black')     # PIL image
+
+    def clear_canvas(self):
+        """Reset canvas and image"""
+        self.canvas.delete("all")
+        self.draw.rectangle([0, 0, 200, 200], fill='white')
+        self.label.config(text="")
+
+    def predict_digit(self):
+        """Preprocess drawing and predict digit"""
+        # Resize to 28x28 (MNIST input size) and invert colors
+        img = self.image.resize((28, 28))
+        img = ImageOps.invert(img)  # MNIST uses white-on-black
+        
+        # Convert to numpy array and normalize
+        img_array = np.array(img) / 255.0
+        img_array = img_array.reshape(1, 28, 28)  # Add batch dimension
+        
+        # Predict and display result
+        prediction = model.predict(img_array)
+        predicted_label = np.argmax(prediction)
+        self.label.config(text=f"Prediction: {predicted_label}")
+
+# Run the GUI
+root = Tk()
+app = App(root)
+root.mainloop()
